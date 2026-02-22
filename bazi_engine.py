@@ -1,6 +1,8 @@
 import sxtwl
 import sys
 import json
+from datetime import datetime, timedelta
+import pytz
 
 # --------------------------
 # 입력값
@@ -12,13 +14,19 @@ hour = int(sys.argv[4])
 gender = sys.argv[5]
 
 # --------------------------
-# 기본 테이블 (먼저 선언)
+# 기본 테이블
 # --------------------------
 stems = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
 branches = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"]
 
 # --------------------------
-# 날짜 객체
+# 출생 시각 (KST)
+# --------------------------
+kst = pytz.timezone("Asia/Seoul")
+birth_dt = kst.localize(datetime(year, month, day, hour, 0, 0))
+
+# --------------------------
+# 사주 계산
 # --------------------------
 day_obj = sxtwl.fromSolar(year, month, day)
 
@@ -28,10 +36,10 @@ day_gz = day_obj.getDayGZ()
 hour_gz = day_obj.getHourGZ(hour)
 
 # --------------------------
-# 순행 / 역행 결정
+# 순행 / 역행
 # --------------------------
-yang_stems_index = [0, 2, 4, 6, 8]
-is_yang_year = year_gz.tg in yang_stems_index
+yang_index = [0, 2, 4, 6, 8]
+is_yang_year = year_gz.tg in yang_index
 
 if gender == "male":
     forward = is_yang_year
@@ -39,35 +47,58 @@ else:
     forward = not is_yang_year
 
 # --------------------------
-# 대운 시작 나이 (임시 날짜 기준)
+# 🔥 다음/이전 "절(節)" 시각 찾기 (JD 기반)
 # --------------------------
 
 
-def get_next_jieqi_days():
-    for i in range(1, 40):
-        test = sxtwl.fromSolar(year, month, day + i)
+def find_target_jieqi():
+    # 1년 범위 탐색
+    for offset in range(0, 365):
+        if forward:
+            test_date = birth_dt + timedelta(days=offset)
+        else:
+            test_date = birth_dt - timedelta(days=offset)
+
+        test = sxtwl.fromSolar(test_date.year, test_date.month, test_date.day)
+
         if test.hasJieQi():
-            return i
-    return 0
+            # 절기 JD 얻기
+            jd = test.getJieQiJD()
+            dd = sxtwl.JD2DD(jd)
+
+            # JD는 UTC 기준
+            dt_utc = datetime(
+                dd.Y, dd.M, dd.D,
+                dd.h, dd.m, int(dd.s),
+                tzinfo=pytz.utc
+            )
+
+            dt_kst = dt_utc.astimezone(kst)
+
+            # 순행이면 출생 이후 절만 허용
+            if forward and dt_kst > birth_dt:
+                return dt_kst
+
+            # 역행이면 출생 이전 절만 허용
+            if not forward and dt_kst < birth_dt:
+                return dt_kst
+
+    return None
 
 
-def get_prev_jieqi_days():
-    for i in range(1, 40):
-        test = sxtwl.fromSolar(year, month, day - i)
-        if test.hasJieQi():
-            return i
-    return 0
-
-
-if forward:
-    diff_days = get_next_jieqi_days()
-else:
-    diff_days = get_prev_jieqi_days()
-
-daewoon_start_age = diff_days // 3
+target_dt = find_target_jieqi()
 
 # --------------------------
-# 60갑자 테이블 생성
+# 🔥 시간 차이 계산
+# --------------------------
+seconds_diff = abs((target_dt - birth_dt).total_seconds())
+days_diff = seconds_diff / 86400.0
+
+# 3일 = 1년 → 72시간 = 1년
+daewoon_start_age = int(seconds_diff // (72 * 3600))
+
+# --------------------------
+# 60갑자 테이블
 # --------------------------
 ganji_60 = []
 for i in range(60):
@@ -76,10 +107,9 @@ for i in range(60):
         "branch": branches[i % 12]
     })
 
-# 월주 60갑자 index 찾기
 month_ganji = stems[month_gz.tg] + branches[month_gz.dz]
-month_index_60 = 0
 
+month_index_60 = 0
 for i in range(60):
     if ganji_60[i]["stem"] + ganji_60[i]["branch"] == month_ganji:
         month_index_60 = i
@@ -103,7 +133,7 @@ for i in range(1, 11):
     })
 
 # --------------------------
-# 결과 반환
+# 결과
 # --------------------------
 result = {
     "year": {"stem": stems[year_gz.tg], "branch": branches[year_gz.dz]},
