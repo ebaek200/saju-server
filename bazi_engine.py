@@ -67,29 +67,30 @@ def find_target_jieqi():
 
         if test.hasJieQi():
 
-    jd = test.getJieQiJD()
-    dd = sxtwl.JD2DD(jd)
+            jd = test.getJieQiJD()
+            dd = sxtwl.JD2DD(jd)
 
-    dt_utc = datetime(
-        int(dd.Y),
-        int(dd.M),
-        int(dd.D),
-        int(dd.h),
-        int(dd.m),
-        int(dd.s),
-        tzinfo=pytz.utc
-    )
+            dt_utc = datetime(
+                int(dd.Y),
+                int(dd.M),
+                int(dd.D),
+                int(dd.h),
+                int(dd.m),
+                int(dd.s),
+                tzinfo=pytz.utc
+            )
 
-    dt_kst = dt_utc.astimezone(kst)
+            dt_kst = dt_utc.astimezone(kst)
 
-    # 🔥 당일 절기이면서 출생 이후면 제외
-    if forward and dt_kst <= birth_dt:
-        continue
-
-    if not forward and dt_kst >= birth_dt:
-        continue
-
-    return dt_kst
+            # 🔥 절기 당일 제외 처리
+            if forward:
+                if dt_kst <= birth_dt:
+                    continue
+                return dt_kst
+            else:
+                if dt_kst >= birth_dt:
+                    continue
+                return dt_kst
 
     return None
 
@@ -141,7 +142,7 @@ for i in range(1, 11):
     })
 
 # --------------------------
-# 결과
+# 결과 반환
 # --------------------------
 result = {
     "year": {"stem": stems[year_gz.tg], "branch": branches[year_gz.dz]},
