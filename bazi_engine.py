@@ -1,7 +1,6 @@
 import sxtwl
 import sys
 import json
-from datetime import datetime
 
 year = int(sys.argv[1])
 month = int(sys.argv[2])
@@ -19,7 +18,9 @@ hour_gz = day_obj.getHourGZ(hour)
 stems = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
 branches = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"]
 
-# 순행/역행 결정
+# --------------------------
+# 순행 / 역행 결정
+# --------------------------
 yang_stems = [0, 2, 4, 6, 8]
 is_yang_year = year_gz.tg in yang_stems
 
@@ -28,7 +29,9 @@ if gender == "male":
 else:
     forward = not is_yang_year
 
-# 절기 찾기 (날짜 기준 안전 버전)
+# --------------------------
+# 대운 시작 나이 (임시 유지)
+# --------------------------
 
 
 def get_next_jieqi_days():
@@ -54,13 +57,36 @@ else:
 
 daewoon_start_age = diff_days // 3
 
+# --------------------------
+# 🔥 대운 배열 생성
+# --------------------------
+month_index = month_gz.tg * 12 + month_gz.dz
+
+daewoon_list = []
+
+for i in range(1, 11):
+    if forward:
+        index = month_index + i
+    else:
+        index = month_index - i
+
+    stem = stems[index % 10]
+    branch = branches[index % 12]
+
+    daewoon_list.append({
+        "age": daewoon_start_age + (i - 1) * 10,
+        "stem": stem,
+        "branch": branch
+    })
+
 result = {
     "year": {"stem": stems[year_gz.tg], "branch": branches[year_gz.dz]},
     "month": {"stem": stems[month_gz.tg], "branch": branches[month_gz.dz]},
     "day": {"stem": stems[day_gz.tg], "branch": branches[day_gz.dz]},
     "hour": {"stem": stems[hour_gz.tg], "branch": branches[hour_gz.dz]},
     "daewoon_start_age": daewoon_start_age,
-    "direction": "순행" if forward else "역행"
+    "direction": "순행" if forward else "역행",
+    "daewoon": daewoon_list
 }
 
 print(json.dumps(result, ensure_ascii=False))
