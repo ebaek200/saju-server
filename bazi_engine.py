@@ -53,18 +53,16 @@ def find_next_jeol(start_jd):
 
     current_lon = sun_longitude(start_jd)
 
-    # 30° 단위로 절만 계산
     target_deg = (math.floor(current_lon / 30) + 1) * 30
     if target_deg >= 360:
         target_deg -= 360
 
     low = start_jd
-    high = start_jd + 40  # 최대 40일 탐색
+    high = start_jd + 40
 
-    for _ in range(60):  # 높은 정밀도
+    for _ in range(60):
         mid = (low + high) / 2
         lon = sun_longitude(mid)
-
         diff = (lon - target_deg + 360) % 360
 
         if diff < 180:
@@ -105,12 +103,11 @@ else:
     target_jd = find_next_jeol(birth_jd - 40)
 
 # --------------------------
-# 시간 차이 계산
+# 🔥 일수 기준 계산 (3일 = 1년, 나머지 버림)
 # --------------------------
 days_diff = abs(target_jd - birth_jd)
-seconds_diff = days_diff * 86400
-
-daewoon_start_age = int(seconds_diff // (72 * 3600))
+days_int = int(days_diff)
+daewoon_start_age = days_int // 3
 
 # --------------------------
 # 60갑자 테이블
