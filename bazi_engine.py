@@ -1,7 +1,7 @@
 import sxtwl
 import sys
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 import pytz
 
 # --------------------------
@@ -20,10 +20,20 @@ stems = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
 branches = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"]
 
 # --------------------------
-# 출생 시각 (KST)
+# 출생 시각 (KST → UTC JD)
 # --------------------------
 kst = pytz.timezone("Asia/Seoul")
-birth_dt = kst.localize(datetime(year, month, day, hour, 0, 0))
+birth_kst = kst.localize(datetime(year, month, day, hour, 0, 0))
+birth_utc = birth_kst.astimezone(pytz.utc)
+
+birth_jd = sxtwl.JD(
+    birth_utc.year,
+    birth_utc.month,
+    birth_utc.day,
+    birth_utc.hour,
+    birth_utc.minute,
+    birth_utc.second
+)
 
 # --------------------------
 # 사주 계산
@@ -47,62 +57,32 @@ else:
     forward = not is_yang_year
 
 # --------------------------
-# 절기 시각 찾기
+# 해당 연도 24절기 JD 수집
 # --------------------------
+jieqi_jd_list = []
 
+for i in range(24):
+    jd = sxtwl.getJieQiJD(year, i)
+    jieqi_jd_list.append(jd)
 
-def find_target_jieqi():
-    for offset in range(0, 365):
+# --------------------------
+# 목표 절기 찾기
+# --------------------------
+target_jd = None
 
-        if forward:
-            test_date = birth_dt + timedelta(days=offset)
-        else:
-            test_date = birth_dt - timedelta(days=offset)
-
-        test = sxtwl.fromSolar(
-            test_date.year,
-            test_date.month,
-            test_date.day
-        )
-
-        if test.hasJieQi():
-
-            jd = test.getJieQiJD()
-            dd = sxtwl.JD2DD(jd)
-
-            dt_utc = datetime(
-                int(dd.Y),
-                int(dd.M),
-                int(dd.D),
-                int(dd.h),
-                int(dd.m),
-                int(dd.s),
-                tzinfo=pytz.utc
-            )
-
-            dt_kst = dt_utc.astimezone(kst)
-
-            # 🔥 절기 당일 제외 처리
-            if forward:
-                if dt_kst <= birth_dt:
-                    continue
-                return dt_kst
-            else:
-                if dt_kst >= birth_dt:
-                    continue
-                return dt_kst
-
-    return None
-
-
-target_dt = find_target_jieqi()
+if forward:
+    future = [jd for jd in jieqi_jd_list if jd > birth_jd]
+    target_jd = min(future)
+else:
+    past = [jd for jd in jieqi_jd_list if jd < birth_jd]
+    target_jd = max(past)
 
 # --------------------------
 # 시간 차이 계산
 # --------------------------
-seconds_diff = abs((target_dt - birth_dt).total_seconds())
+days_diff = abs(target_jd - birth_jd)
+seconds_diff = days_diff * 86400
 
-# 72시간 = 1년
 daewoon_start_age = int(seconds_diff // (72 * 3600))
 
 # --------------------------
@@ -129,7 +109,6 @@ for i in range(60):
 daewoon_list = []
 
 for i in range(1, 11):
-
     if forward:
         idx = (month_index_60 + i) % 60
     else:
@@ -142,7 +121,7 @@ for i in range(1, 11):
     })
 
 # --------------------------
-# 결과 반환
+# 결과
 # --------------------------
 result = {
     "year": {"stem": stems[year_gz.tg], "branch": branches[year_gz.dz]},
