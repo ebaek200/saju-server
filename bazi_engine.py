@@ -1,9 +1,10 @@
-import sxtwl
 import sys
 import json
-from datetime import datetime
-import pytz
 import math
+from datetime import datetime, timedelta
+import pytz
+import swisseph as swe
+import sxtwl
 
 # --------------------------
 # 입력값
@@ -21,37 +22,49 @@ stems = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
 branches = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"]
 
 # --------------------------
-# 출생 시각 (KST → UTC)
+# 출생시각 → UTC JD
 # --------------------------
 kst = pytz.timezone("Asia/Seoul")
 birth_kst = kst.localize(datetime(year, month, day, hour, 0, 0))
 birth_utc = birth_kst.astimezone(pytz.utc)
 
+birth_jd = swe.julday(
+    birth_utc.year,
+    birth_utc.month,
+    birth_utc.day,
+    birth_utc.hour + birth_utc.minute/60
+)
+
 # --------------------------
-# 🔥 직접 Julian Day 계산
+# 태양 황경 구하기
 # --------------------------
 
 
-def to_julian_day(dt):
-    y = dt.year
-    m = dt.month
-    d = dt.day + (dt.hour + dt.minute/60 + dt.second/3600) / 24
+def sun_longitude(jd):
+    lon = swe.calc_ut(jd, swe.SUN)[0][0]
+    return lon % 360
 
-    if m <= 2:
-        y -= 1
-        m += 12
-
-    A = math.floor(y / 100)
-    B = 2 - A + math.floor(A / 4)
-
-    jd = math.floor(365.25*(y + 4716)) \
-        + math.floor(30.6001*(m + 1)) \
-        + d + B - 1524.5
-
-    return jd
+# --------------------------
+# 절기 시각 계산
+# --------------------------
 
 
-birth_jd = to_julian_day(birth_utc)
+def find_next_solar_term(start_jd):
+    current_lon = sun_longitude(start_jd)
+    target_deg = (math.floor(current_lon / 15) + 1) * 15
+    if target_deg >= 360:
+        target_deg -= 360
+
+    jd = start_jd
+    step = 0.5  # 12시간 단위 탐색
+
+    while True:
+        jd += step
+        lon = sun_longitude(jd)
+        if (lon >= target_deg and current_lon < target_deg) or \
+           (target_deg == 0 and lon < current_lon):
+            return jd
+
 
 # --------------------------
 # 사주 계산
@@ -64,7 +77,7 @@ day_gz = day_obj.getDayGZ()
 hour_gz = day_obj.getHourGZ(hour)
 
 # --------------------------
-# 순행 / 역행
+# 순행/역행
 # --------------------------
 yang_index = [0, 2, 4, 6, 8]
 is_yang_year = year_gz.tg in yang_index
@@ -75,26 +88,15 @@ else:
     forward = not is_yang_year
 
 # --------------------------
-# 절기 JD 수집
-# --------------------------
-jieqi_jd_list = []
-
-for i in range(24):
-    jd = sxtwl.getJieQiJD(year, i)
-    jieqi_jd_list.append(jd)
-
-# --------------------------
-# 목표 절기 찾기
+# 절기 JD 계산
 # --------------------------
 if forward:
-    future = [jd for jd in jieqi_jd_list if jd > birth_jd]
-    target_jd = min(future)
+    target_jd = find_next_solar_term(birth_jd)
 else:
-    past = [jd for jd in jieqi_jd_list if jd < birth_jd]
-    target_jd = max(past)
+    target_jd = find_next_solar_term(birth_jd - 30)
 
 # --------------------------
-# 시간 차이 계산
+# 시간차 계산
 # --------------------------
 days_diff = abs(target_jd - birth_jd)
 seconds_diff = days_diff * 86400
@@ -120,7 +122,7 @@ for i in range(60):
         break
 
 # --------------------------
-# 대운 배열 생성
+# 대운 배열
 # --------------------------
 daewoon_list = []
 
