@@ -1,68 +1,78 @@
 const express = require("express");
 const cors = require("cors");
 const { execFile } = require("child_process");
+const path = require("path");
 
 const app = express();
 
-// 🔥 CORS 반드시 여기 위치
 app.use(cors());
-
-// JSON 파싱
 app.use(express.json());
 
-// ----------------------------
-// Python 실행 함수
-// ----------------------------
-function runBaziEngine(input) {
+function runBaziEngine(data) {
   return new Promise((resolve, reject) => {
-    execFile(
-      "python3",
-      [
-        "bazi_engine.py",
-        input.year,
-        input.month,
-        input.day,
-        input.hour,
-        input.gender
-      ],
-      (error, stdout, stderr) => {
-        if (error) {
-          console.error(stderr);
-          reject(error);
-          return;
-        }
-        try {
-          resolve(JSON.parse(stdout));
-        } catch (e) {
-          reject(e);
-        }
+
+    const args = [
+      path.join(__dirname, "bazi_engine.py"),
+      data.year,
+      data.month,
+      data.day,
+      data.hour,
+      data.gender || "male"
+    ];
+
+    execFile("python3", args, (error, stdout, stderr) => {
+
+      if (stderr) {
+        console.error("=== PYTHON STDERR ===");
+        console.error(stderr);
       }
-    );
+
+      if (error) {
+        console.error("=== PYTHON ERROR ===");
+        console.error(error);
+        reject(new Error(stderr || error.message));
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(stdout);
+        resolve(parsed);
+      } catch (e) {
+        console.error("=== JSON PARSE ERROR ===");
+        console.error("STDOUT:", stdout);
+        reject(e);
+      }
+
+    });
   });
 }
 
-// ----------------------------
-// API 엔드포인트
-// ----------------------------
 app.post("/api/saju", async (req, res) => {
   try {
+
+    console.log("=== REQUEST DATA ===");
+    console.log(req.body);
+
     const result = await runBaziEngine(req.body);
-    res.json({
-      raw: result,
-      analysis: {
-        summary:
-          "\n연주 " + result.year.stem + result.year.branch +
-          "\n월주 " + result.month.stem + result.month.branch +
-          "\n일주 " + result.day.stem + result.day.branch +
-          "\n시주 " + result.hour.stem + result.hour.branch + "\n"
-      }
-    });
+
+    res.json(result);
+
   } catch (err) {
-    res.status(500).json({ error: "Engine Error" });
+
+    console.error("=== ENGINE CRASH ===");
+    console.error(err);
+
+    res.status(500).json({
+      error: err.toString()
+    });
+
   }
 });
 
-// Render 포트
+app.get("/", (req, res) => {
+  res.send("K-SAJU SERVER RUNNING");
+});
+
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
