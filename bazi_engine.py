@@ -1,11 +1,10 @@
-import sxtwl
-import swisseph as swe
-import pytz
-from datetime import datetime, timedelta
-import math
-import json
 import sys
-print("SWISS ENGINE ACTIVE")
+import json
+import math
+from datetime import datetime
+import pytz
+import swisseph as swe
+import sxtwl
 
 # --------------------------
 # 입력값
@@ -33,11 +32,11 @@ birth_jd = swe.julday(
     birth_utc.year,
     birth_utc.month,
     birth_utc.day,
-    birth_utc.hour + birth_utc.minute/60
+    birth_utc.hour + birth_utc.minute/60 + birth_utc.second/3600
 )
 
 # --------------------------
-# 태양 황경 구하기
+# 태양 황경
 # --------------------------
 
 
@@ -46,25 +45,33 @@ def sun_longitude(jd):
     return lon % 360
 
 # --------------------------
-# 절기 시각 계산
+# 이분 탐색으로 다음 절기 계산
 # --------------------------
 
 
 def find_next_solar_term(start_jd):
+
     current_lon = sun_longitude(start_jd)
     target_deg = (math.floor(current_lon / 15) + 1) * 15
     if target_deg >= 360:
         target_deg -= 360
 
-    jd = start_jd
-    step = 0.5  # 12시간 단위 탐색
+    low = start_jd
+    high = start_jd + 20  # 최대 20일 탐색
 
-    while True:
-        jd += step
-        lon = sun_longitude(jd)
-        if (lon >= target_deg and current_lon < target_deg) or \
-           (target_deg == 0 and lon < current_lon):
-            return jd
+    for _ in range(50):  # 충분한 정밀도
+        mid = (low + high) / 2
+        lon = sun_longitude(mid)
+
+        # 각도 차이를 0~360 범위로
+        diff = (lon - target_deg + 360) % 360
+
+        if diff < 180:
+            high = mid
+        else:
+            low = mid
+
+    return (low + high) / 2
 
 
 # --------------------------
@@ -94,14 +101,16 @@ else:
 if forward:
     target_jd = find_next_solar_term(birth_jd)
 else:
-    target_jd = find_next_solar_term(birth_jd - 30)
+    # 역행은 이전 절기
+    target_jd = find_next_solar_term(birth_jd - 20)
 
 # --------------------------
-# 시간차 계산
+# 시간 차이 계산
 # --------------------------
 days_diff = abs(target_jd - birth_jd)
 seconds_diff = days_diff * 86400
 
+# 3일 = 1년 (72시간)
 daewoon_start_age = int(seconds_diff // (72 * 3600))
 
 # --------------------------
@@ -151,5 +160,5 @@ result = {
     "direction": "순행" if forward else "역행",
     "daewoon": daewoon_list
 }
-print("DEBUG AGE:", daewoon_start_age)
+
 print(json.dumps(result, ensure_ascii=False))
