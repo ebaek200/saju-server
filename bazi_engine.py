@@ -47,43 +47,44 @@ else:
     forward = not is_yang_year
 
 # --------------------------
-# 🔥 다음/이전 "절(節)" 시각 찾기 (JD 기반)
+# 절기 시각 찾기
 # --------------------------
 
 
 def find_target_jieqi():
-    # 1년 범위 탐색
     for offset in range(0, 365):
+
         if forward:
             test_date = birth_dt + timedelta(days=offset)
         else:
             test_date = birth_dt - timedelta(days=offset)
 
-        test = sxtwl.fromSolar(test_date.year, test_date.month, test_date.day)
+        test = sxtwl.fromSolar(
+            test_date.year,
+            test_date.month,
+            test_date.day
+        )
 
         if test.hasJieQi():
-            # 절기 JD 얻기
+
             jd = test.getJieQiJD()
             dd = sxtwl.JD2DD(jd)
 
-            # JD는 UTC 기준
-          dt_utc = datetime(
-           int(dd.Y),
-            int(dd.M),
-            int(dd.D),
-           int(dd.h),
-            int(dd.m),
-           int(dd.s),
-            tzinfo=pytz.utc
+            dt_utc = datetime(
+                int(dd.Y),
+                int(dd.M),
+                int(dd.D),
+                int(dd.h),
+                int(dd.m),
+                int(dd.s),
+                tzinfo=pytz.utc
             )
 
             dt_kst = dt_utc.astimezone(kst)
 
-            # 순행이면 출생 이후 절만 허용
             if forward and dt_kst > birth_dt:
                 return dt_kst
 
-            # 역행이면 출생 이전 절만 허용
             if not forward and dt_kst < birth_dt:
                 return dt_kst
 
@@ -93,12 +94,11 @@ def find_target_jieqi():
 target_dt = find_target_jieqi()
 
 # --------------------------
-# 🔥 시간 차이 계산
+# 시간 차이 계산
 # --------------------------
 seconds_diff = abs((target_dt - birth_dt).total_seconds())
-days_diff = seconds_diff / 86400.0
 
-# 3일 = 1년 → 72시간 = 1년
+# 72시간 = 1년
 daewoon_start_age = int(seconds_diff // (72 * 3600))
 
 # --------------------------
@@ -125,6 +125,7 @@ for i in range(60):
 daewoon_list = []
 
 for i in range(1, 11):
+
     if forward:
         idx = (month_index_60 + i) % 60
     else:
