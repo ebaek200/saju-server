@@ -28,6 +28,8 @@ app.post("/api/saju", async (req, res) => {
   }
 });
 
-app.listen(10000, () => {
-  console.log("Server running on port 10000");
+const PORT = process.env.PORT || 10000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
