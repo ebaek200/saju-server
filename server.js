@@ -14,8 +14,8 @@ app.use((req, res, next) => {
 function runBaziEngine(input) {
   return new Promise((resolve, reject) => {
     execFile(
-     "python3",
-     ["bazi_engine.py", input.year, input.month, input.day, input.hour, input.gender], 
+  "python3",
+  ["bazi_engine.py", input.year, input.month, input.day, input.hour, input.gender], 
       (error, stdout) => {
         if (error) reject(error);
         resolve(JSON.parse(stdout));

@@ -1,7 +1,8 @@
 import sxtwl
 import sys
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
+import pytz
 
 # --------------------------
 # 입력값
@@ -10,7 +11,13 @@ year = int(sys.argv[1])
 month = int(sys.argv[2])
 day = int(sys.argv[3])
 hour = int(sys.argv[4])
-gender = sys.argv[5]  # male / female
+gender = sys.argv[5]  # "male" / "female"
+
+# --------------------------
+# 출생 시각 (KST)
+# --------------------------
+kst = pytz.timezone("Asia/Seoul")
+birth_dt_kst = kst.localize(datetime(year, month, day, hour, 0, 0))
 
 # --------------------------
 # 날짜 객체
@@ -29,7 +36,6 @@ branches = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유"
 # 🔥 순행 / 역행 결정
 # --------------------------
 yang_stems = [0, 2, 4, 6, 8]  # 갑병무경임
-
 is_yang_year = year_gz.tg in yang_stems
 
 if gender == "male":
@@ -38,36 +44,58 @@ else:
     forward = not is_yang_year
 
 # --------------------------
-# 🔥 절기 찾기
+# 🔥 절기 시각(JD) → KST 변환 함수
 # --------------------------
-birth_dt = datetime(year, month, day)
 
 
-def get_next_jieqi(d):
-    for i in range(1, 40):
+def jd_to_kst_datetime(jd):
+    # sxtwl JD는 UTC 기준
+    jd_utc = sxtwl.JD2DD(jd)
+    dt_utc = datetime(
+        jd_utc.Y, jd_utc.M, jd_utc.D,
+        jd_utc.h, jd_utc.m, int(jd_utc.s),
+        tzinfo=pytz.utc
+    )
+    return dt_utc.astimezone(kst)
+
+# --------------------------
+# 🔥 다음/이전 절기 시각 찾기 (절만 사용)
+# --------------------------
+
+
+def find_next_jieqi_dt():
+    for i in range(0, 40):
         test = sxtwl.fromSolar(year, month, day + i)
         if test.hasJieQi():
-            return i
-    return 0
+            jd = test.getJieQiJD()
+            return jd_to_kst_datetime(jd)
+    return None
 
 
-def get_prev_jieqi(d):
-    for i in range(1, 40):
+def find_prev_jieqi_dt():
+    for i in range(0, 40):
         test = sxtwl.fromSolar(year, month, day - i)
         if test.hasJieQi():
-            return i
-    return 0
+            jd = test.getJieQiJD()
+            return jd_to_kst_datetime(jd)
+    return None
 
 
 if forward:
-    diff_days = get_next_jieqi(day_obj)
+    target_dt = find_next_jieqi_dt()
 else:
-    diff_days = get_prev_jieqi(day_obj)
+    target_dt = find_prev_jieqi_dt()
+
+# --------------------------
+# 🔥 시간 단위 차이 계산
+# --------------------------
+time_diff = abs((target_dt - birth_dt_kst).total_seconds())
+days_diff = time_diff / 86400  # 초 → 일
 
 # --------------------------
 # 🔥 대운수 계산 (3일 = 1년)
 # --------------------------
-daewoon_start_age = diff_days // 3
+daewoon_start_age = int(days_diff // 3)
 
 # --------------------------
 # 결과
