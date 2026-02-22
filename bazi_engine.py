@@ -3,6 +3,7 @@ import sys
 import json
 from datetime import datetime
 import pytz
+import math
 
 # --------------------------
 # 입력값
@@ -20,20 +21,37 @@ stems = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
 branches = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"]
 
 # --------------------------
-# 출생 시각 (KST → UTC JD)
+# 출생 시각 (KST → UTC)
 # --------------------------
 kst = pytz.timezone("Asia/Seoul")
 birth_kst = kst.localize(datetime(year, month, day, hour, 0, 0))
 birth_utc = birth_kst.astimezone(pytz.utc)
 
-birth_jd = sxtwl.JD(
-    birth_utc.year,
-    birth_utc.month,
-    birth_utc.day,
-    birth_utc.hour,
-    birth_utc.minute,
-    birth_utc.second
-)
+# --------------------------
+# 🔥 직접 Julian Day 계산
+# --------------------------
+
+
+def to_julian_day(dt):
+    y = dt.year
+    m = dt.month
+    d = dt.day + (dt.hour + dt.minute/60 + dt.second/3600) / 24
+
+    if m <= 2:
+        y -= 1
+        m += 12
+
+    A = math.floor(y / 100)
+    B = 2 - A + math.floor(A / 4)
+
+    jd = math.floor(365.25*(y + 4716)) \
+        + math.floor(30.6001*(m + 1)) \
+        + d + B - 1524.5
+
+    return jd
+
+
+birth_jd = to_julian_day(birth_utc)
 
 # --------------------------
 # 사주 계산
@@ -57,7 +75,7 @@ else:
     forward = not is_yang_year
 
 # --------------------------
-# 해당 연도 24절기 JD 수집
+# 절기 JD 수집
 # --------------------------
 jieqi_jd_list = []
 
@@ -68,8 +86,6 @@ for i in range(24):
 # --------------------------
 # 목표 절기 찾기
 # --------------------------
-target_jd = None
-
 if forward:
     future = [jd for jd in jieqi_jd_list if jd > birth_jd]
     target_jd = min(future)
