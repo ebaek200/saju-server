@@ -67,10 +67,14 @@ def find_target_jieqi():
             dd = sxtwl.JD2DD(jd)
 
             # JD는 UTC 기준
-            dt_utc = datetime(
-                dd.Y, dd.M, dd.D,
-                dd.h, dd.m, int(dd.s),
-                tzinfo=pytz.utc
+          dt_utc = datetime(
+           int(dd.Y),
+            int(dd.M),
+            int(dd.D),
+           int(dd.h),
+            int(dd.m),
+           int(dd.s),
+            tzinfo=pytz.utc
             )
 
             dt_kst = dt_utc.astimezone(kst)
