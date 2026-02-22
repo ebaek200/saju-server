@@ -45,25 +45,26 @@ def sun_longitude(jd):
     return lon % 360
 
 # --------------------------
-# 이분 탐색으로 다음 절기 계산
+# 절(30° 간격) 계산
 # --------------------------
 
 
-def find_next_solar_term(start_jd):
+def find_next_jeol(start_jd):
 
     current_lon = sun_longitude(start_jd)
-    target_deg = (math.floor(current_lon / 15) + 1) * 15
+
+    # 30° 단위로 절만 계산
+    target_deg = (math.floor(current_lon / 30) + 1) * 30
     if target_deg >= 360:
         target_deg -= 360
 
     low = start_jd
-    high = start_jd + 20  # 최대 20일 탐색
+    high = start_jd + 40  # 최대 40일 탐색
 
-    for _ in range(50):  # 충분한 정밀도
+    for _ in range(60):  # 높은 정밀도
         mid = (low + high) / 2
         lon = sun_longitude(mid)
 
-        # 각도 차이를 0~360 범위로
         diff = (lon - target_deg + 360) % 360
 
         if diff < 180:
@@ -96,13 +97,12 @@ else:
     forward = not is_yang_year
 
 # --------------------------
-# 절기 JD 계산
+# 절 JD 계산
 # --------------------------
 if forward:
-    target_jd = find_next_solar_term(birth_jd)
+    target_jd = find_next_jeol(birth_jd)
 else:
-    # 역행은 이전 절기
-    target_jd = find_next_solar_term(birth_jd - 20)
+    target_jd = find_next_jeol(birth_jd - 40)
 
 # --------------------------
 # 시간 차이 계산
@@ -110,7 +110,6 @@ else:
 days_diff = abs(target_jd - birth_jd)
 seconds_diff = days_diff * 86400
 
-# 3일 = 1년 (72시간)
 daewoon_start_age = int(seconds_diff // (72 * 3600))
 
 # --------------------------
