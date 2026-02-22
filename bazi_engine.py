@@ -58,12 +58,22 @@ def calc_ten_god(day_master, target):
 
     return "오류"
 
+# =============================
+# 12운성 (10천간 완전표)
+# =============================
 
-# =============================
-# 12운성 (무토 기준 포함)
-# =============================
+
 twelve_state_table = {
-    "무": ["인", "묘", "진", "사", "오", "미", "신", "유", "술", "해", "자", "축"]
+    "갑": ["해", "자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술"],
+    "을": ["오", "미", "신", "유", "술", "해", "자", "축", "인", "묘", "진", "사"],
+    "병": ["인", "묘", "진", "사", "오", "미", "신", "유", "술", "해", "자", "축"],
+    "정": ["유", "술", "해", "자", "축", "인", "묘", "진", "사", "오", "미", "신"],
+    "무": ["인", "묘", "진", "사", "오", "미", "신", "유", "술", "해", "자", "축"],
+    "기": ["유", "술", "해", "자", "축", "인", "묘", "진", "사", "오", "미", "신"],
+    "경": ["사", "오", "미", "신", "유", "술", "해", "자", "축", "인", "묘", "진"],
+    "신": ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"],
+    "임": ["신", "유", "술", "해", "자", "축", "인", "묘", "진", "사", "오", "미"],
+    "계": ["묘", "진", "사", "오", "미", "신", "유", "술", "해", "자", "축", "인"]
 }
 
 twelve_state_names = [
@@ -74,18 +84,28 @@ twelve_state_names = [
 
 
 def calc_twelve_state(day_master, branch):
-    seq = twelve_state_table.get(day_master)
-    if not seq:
-        return ""
+    seq = twelve_state_table[day_master]
     idx = seq.index(branch)
     return twelve_state_names[idx]
 
+# =============================
+# 12신살 (연지 기준 기본형)
+# =============================
 
-# =============================
-# 12신살 (연지 기준)
-# =============================
+
 sinsal_table = {
-    "술": {"역마": "신", "도화": "묘", "장성": "술", "반안": "유"}
+    "자": {"역마": "인", "도화": "유", "장성": "자", "반안": "축"},
+    "축": {"역마": "해", "도화": "오", "장성": "축", "반안": "자"},
+    "인": {"역마": "신", "도화": "묘", "장성": "인", "반안": "해"},
+    "묘": {"역마": "사", "도화": "자", "장성": "묘", "반안": "인"},
+    "진": {"역마": "인", "도화": "유", "장성": "진", "반안": "묘"},
+    "사": {"역마": "해", "도화": "오", "장성": "사", "반안": "진"},
+    "오": {"역마": "신", "도화": "묘", "장성": "오", "반안": "사"},
+    "미": {"역마": "사", "도화": "자", "장성": "미", "반안": "오"},
+    "신": {"역마": "인", "도화": "유", "장성": "신", "반안": "미"},
+    "유": {"역마": "해", "도화": "오", "장성": "유", "반안": "신"},
+    "술": {"역마": "신", "도화": "묘", "장성": "술", "반안": "유"},
+    "해": {"역마": "사", "도화": "자", "장성": "해", "반안": "술"}
 }
 
 # =============================
@@ -130,102 +150,6 @@ if year_branch in sinsal_table:
             sinsal.append(name)
 
 # =============================
-# 대운 기산
-# =============================
-kst = pytz.timezone("Asia/Seoul")
-birth_kst = kst.localize(datetime(year, month, day, hour))
-birth_utc = birth_kst.astimezone(pytz.utc)
-
-birth_jd = swe.julday(
-    birth_utc.year,
-    birth_utc.month,
-    birth_utc.day,
-    birth_utc.hour + birth_utc.minute/60
-)
-
-
-def sun_longitude(jd):
-    return swe.calc_ut(jd, swe.SUN)[0][0] % 360
-
-
-def find_next_jeol(start_jd):
-    current_lon = sun_longitude(start_jd)
-    target_deg = (math.floor(current_lon / 30) + 1) * 30
-    if target_deg >= 360:
-        target_deg -= 360
-    jd = start_jd
-    step = 0.5
-    while True:
-        jd_next = jd + step
-        lon1 = sun_longitude(jd)
-        lon2 = sun_longitude(jd_next)
-        if (lon1 <= target_deg <= lon2) or (target_deg == 0 and lon2 < lon1):
-            low = jd
-            high = jd_next
-            break
-        jd = jd_next
-    for _ in range(50):
-        mid = (low + high) / 2
-        lon_mid = sun_longitude(mid)
-        if (lon_mid - target_deg + 360) % 360 < 180:
-            high = mid
-        else:
-            low = mid
-    return (low + high) / 2
-
-
-target_jd = find_next_jeol(birth_jd)
-days_diff = int(abs(target_jd - birth_jd))
-daewoon_start_age = days_diff // 3
-
-# =============================
-# 60갑자
-# =============================
-ganji_60 = [stems[i % 10]+branches[i % 12] for i in range(60)]
-month_ganji = month_stem + month_branch
-month_index = ganji_60.index(month_ganji)
-
-daewoon = []
-for i in range(1, 11):
-    idx = (month_index + i) % 60
-    ganji = ganji_60[idx]
-    daewoon.append({
-        "age": daewoon_start_age + (i-1)*10,
-        "ganji": ganji,
-        "ten_star": calc_ten_god(day_master, ganji[0])
-    })
-
-# =============================
-# 세운
-# =============================
-current_year = datetime.now().year
-sewoon = []
-for i in range(10):
-    y = current_year + i
-    y_obj = sxtwl.fromSolar(y, 6, 1)
-    y_gz = y_obj.getYearGZ()
-    ganji = stems[y_gz.tg] + branches[y_gz.dz]
-    sewoon.append({
-        "year": y,
-        "ganji": ganji,
-        "ten_star": calc_ten_god(day_master, ganji[0])
-    })
-
-# =============================
-# 월운
-# =============================
-month_luck = []
-for m in range(1, 13):
-    m_obj = sxtwl.fromSolar(current_year, m, 15)
-    m_gz = m_obj.getMonthGZ()
-    ganji = stems[m_gz.tg] + branches[m_gz.dz]
-    month_luck.append({
-        "month": m,
-        "ganji": ganji,
-        "ten_star": calc_ten_god(day_master, ganji[0])
-    })
-
-# =============================
 # 결과
 # =============================
 result = {
@@ -242,11 +166,7 @@ result = {
         "hour": calc_ten_god(day_master, hour_stem)
     },
     "twelve_state": twelve_state,
-    "sinsal": sinsal,
-    "daewoon_start_age": daewoon_start_age,
-    "daewoon": daewoon,
-    "sewoon": sewoon,
-    "month_luck": month_luck
+    "sinsal": sinsal
 }
 
 print(json.dumps(result, ensure_ascii=False))
