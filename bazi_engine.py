@@ -32,7 +32,7 @@ birth_jd = swe.julday(
     birth_utc.year,
     birth_utc.month,
     birth_utc.day,
-    birth_utc.hour + birth_utc.minute/60 + birth_utc.second/3600
+    birth_utc.hour + birth_utc.minute/60
 )
 
 # --------------------------
@@ -45,22 +45,19 @@ def sun_longitude(jd):
     return lon % 360
 
 # --------------------------
-# 🔥 절(30°) 교차구간 탐색 + 이분 탐색
+# 절 계산 (절 기준)
 # --------------------------
 
 
 def find_next_jeol(start_jd):
-
     current_lon = sun_longitude(start_jd)
-
     target_deg = (math.floor(current_lon / 30) + 1) * 30
     if target_deg >= 360:
         target_deg -= 360
 
     jd = start_jd
-    step = 0.5  # 12시간 단위 탐색
+    step = 0.5
 
-    # 1단계: 교차 구간 찾기
     while True:
         jd_next = jd + step
         lon1 = sun_longitude(jd)
@@ -74,11 +71,9 @@ def find_next_jeol(start_jd):
 
         jd = jd_next
 
-    # 2단계: 이분 탐색으로 정밀화
     for _ in range(60):
         mid = (low + high) / 2
         lon_mid = sun_longitude(mid)
-
         diff = (lon_mid - target_deg + 360) % 360
 
         if diff < 180:
@@ -100,7 +95,7 @@ day_gz = day_obj.getDayGZ()
 hour_gz = day_obj.getHourGZ(hour)
 
 # --------------------------
-# 순행 / 역행
+# 순행/역행
 # --------------------------
 yang_index = [0, 2, 4, 6, 8]
 is_yang_year = year_gz.tg in yang_index
@@ -111,22 +106,19 @@ else:
     forward = not is_yang_year
 
 # --------------------------
-# 절 JD 계산
+# 대운 시작 나이
 # --------------------------
 if forward:
     target_jd = find_next_jeol(birth_jd)
 else:
     target_jd = find_next_jeol(birth_jd - 40)
 
-# --------------------------
-# 🔥 일수 기준 계산 (3일 = 1년)
-# --------------------------
 days_diff = abs(target_jd - birth_jd)
 days_int = int(days_diff)
 daewoon_start_age = days_int // 3
 
 # --------------------------
-# 60갑자 테이블
+# 대운 배열
 # --------------------------
 ganji_60 = []
 for i in range(60):
@@ -136,16 +128,13 @@ for i in range(60):
     })
 
 month_ganji = stems[month_gz.tg] + branches[month_gz.dz]
-
 month_index_60 = 0
+
 for i in range(60):
     if ganji_60[i]["stem"] + ganji_60[i]["branch"] == month_ganji:
         month_index_60 = i
         break
 
-# --------------------------
-# 대운 배열
-# --------------------------
 daewoon_list = []
 
 for i in range(1, 11):
@@ -161,6 +150,23 @@ for i in range(1, 11):
     })
 
 # --------------------------
+# 🔥 세운 계산 (현재 연도 기준 10년)
+# --------------------------
+current_year = datetime.now().year
+sewoon_list = []
+
+for i in range(10):
+    y = current_year + i
+    y_obj = sxtwl.fromSolar(y, 6, 1)  # 입춘 이후 날짜
+    y_gz = y_obj.getYearGZ()
+
+    sewoon_list.append({
+        "year": y,
+        "stem": stems[y_gz.tg],
+        "branch": branches[y_gz.dz]
+    })
+
+# --------------------------
 # 결과
 # --------------------------
 result = {
@@ -170,7 +176,8 @@ result = {
     "hour": {"stem": stems[hour_gz.tg], "branch": branches[hour_gz.dz]},
     "daewoon_start_age": daewoon_start_age,
     "direction": "순행" if forward else "역행",
-    "daewoon": daewoon_list
+    "daewoon": daewoon_list,
+    "sewoon": sewoon_list
 }
 
 print(json.dumps(result, ensure_ascii=False))
