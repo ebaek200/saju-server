@@ -45,7 +45,7 @@ def sun_longitude(jd):
     return lon % 360
 
 # --------------------------
-# 절(30° 간격) 계산
+# 🔥 절(30°) 교차구간 탐색 + 이분 탐색
 # --------------------------
 
 
@@ -57,13 +57,29 @@ def find_next_jeol(start_jd):
     if target_deg >= 360:
         target_deg -= 360
 
-    low = start_jd
-    high = start_jd + 40
+    jd = start_jd
+    step = 0.5  # 12시간 단위 탐색
 
+    # 1단계: 교차 구간 찾기
+    while True:
+        jd_next = jd + step
+        lon1 = sun_longitude(jd)
+        lon2 = sun_longitude(jd_next)
+
+        if (lon1 <= target_deg <= lon2) or \
+           (target_deg == 0 and lon2 < lon1):
+            low = jd
+            high = jd_next
+            break
+
+        jd = jd_next
+
+    # 2단계: 이분 탐색으로 정밀화
     for _ in range(60):
         mid = (low + high) / 2
-        lon = sun_longitude(mid)
-        diff = (lon - target_deg + 360) % 360
+        lon_mid = sun_longitude(mid)
+
+        diff = (lon_mid - target_deg + 360) % 360
 
         if diff < 180:
             high = mid
@@ -84,7 +100,7 @@ day_gz = day_obj.getDayGZ()
 hour_gz = day_obj.getHourGZ(hour)
 
 # --------------------------
-# 순행/역행
+# 순행 / 역행
 # --------------------------
 yang_index = [0, 2, 4, 6, 8]
 is_yang_year = year_gz.tg in yang_index
@@ -103,7 +119,7 @@ else:
     target_jd = find_next_jeol(birth_jd - 40)
 
 # --------------------------
-# 🔥 일수 기준 계산 (3일 = 1년, 나머지 버림)
+# 🔥 일수 기준 계산 (3일 = 1년)
 # --------------------------
 days_diff = abs(target_jd - birth_jd)
 days_int = int(days_diff)
