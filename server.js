@@ -2,8 +2,8 @@ const express = require("express");
 const { execFile } = require("child_process");
 const { analyzeSaju } = require("./engine/interpretationEngine");
 
-const app = express();
-app.use(express.json());
+const cors = require("cors");
+app.use(cors());
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
