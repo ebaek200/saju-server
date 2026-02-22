@@ -1,10 +1,11 @@
-import sys
-import json
-import math
-from datetime import datetime, timedelta
-import pytz
-import swisseph as swe
 import sxtwl
+import swisseph as swe
+import pytz
+from datetime import datetime, timedelta
+import math
+import json
+import sys
+print("SWISS ENGINE ACTIVE")
 
 # --------------------------
 # 입력값
@@ -150,5 +151,5 @@ result = {
     "direction": "순행" if forward else "역행",
     "daewoon": daewoon_list
 }
-
+print("DEBUG AGE:", daewoon_start_age)
 print(json.dumps(result, ensure_ascii=False))
