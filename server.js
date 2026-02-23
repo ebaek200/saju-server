@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const { Pool } = require("pg");
+const fetch = require("node-fetch");
 
 const app = express();
 app.use(cors());
@@ -15,6 +16,8 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+const PYTHON_ENGINE_URL = "https://saju-server.onrender.com/login";
+
 /* ================================
    DB 연결 테스트
 ================================ */
@@ -22,33 +25,28 @@ const pool = new Pool({
 pool.query("SELECT NOW()")
   .then(res => {
     console.log("✅ DB Connected Successfully");
-    console.log("🕒 Server Time:", res.rows[0].now);
   })
   .catch(err => {
     console.error("❌ DB Connection Error:", err);
   });
 
 /* ================================
-   회원번호 생성 (1111~9999)
+   회원번호 생성
 ================================ */
 
 async function generateMemberNumber() {
   while (true) {
     const num = Math.floor(1111 + Math.random() * 8888).toString();
-
     const result = await pool.query(
       "SELECT 1 FROM users WHERE member_number = $1",
       [num]
     );
-
-    if (result.rowCount === 0) {
-      return num;
-    }
+    if (result.rowCount === 0) return num;
   }
 }
 
 /* ================================
-   1️⃣ 신규 사용자 등록
+   신규 등록
 ================================ */
 
 app.post("/register", async (req, res) => {
@@ -62,10 +60,6 @@ app.post("/register", async (req, res) => {
       gender
     } = req.body;
 
-    if (!name || !birth_year || !birth_month || !birth_day || !calendar_type || !gender) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
     const member_number = await generateMemberNumber();
 
     await pool.query(
@@ -75,10 +69,7 @@ app.post("/register", async (req, res) => {
       [member_number, name, birth_year, birth_month, birth_day, calendar_type, gender]
     );
 
-    res.json({
-      success: true,
-      member_number
-    });
+    res.json({ success: true, member_number });
 
   } catch (err) {
     console.error(err);
@@ -87,21 +78,15 @@ app.post("/register", async (req, res) => {
 });
 
 /* ================================
-   2️⃣ 생시 최초 설정
+   생시 설정
 ================================ */
 
 app.post("/set-hour", async (req, res) => {
   try {
     const { member_number, birth_hour } = req.body;
 
-    if (!member_number || !birth_hour) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
-
     await pool.query(
-      `UPDATE users
-       SET birth_hour = $1
-       WHERE member_number = $2`,
+      `UPDATE users SET birth_hour = $1 WHERE member_number = $2`,
       [birth_hour, member_number]
     );
 
@@ -114,16 +99,12 @@ app.post("/set-hour", async (req, res) => {
 });
 
 /* ================================
-   3️⃣ 기존 사용자 복원
+   복원
 ================================ */
 
 app.post("/restore", async (req, res) => {
   try {
     const { member_number, birth_hour } = req.body;
-
-    if (!member_number || !birth_hour) {
-      return res.status(400).json({ error: "Missing fields" });
-    }
 
     const result = await pool.query(
       `SELECT * FROM users
@@ -144,6 +125,48 @@ app.post("/restore", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Restore failed" });
+  }
+});
+
+/* ================================
+   사주 계산 (Python 연동)
+================================ */
+
+app.post("/calculate", async (req, res) => {
+  try {
+    const { member_number } = req.body;
+
+    const result = await pool.query(
+      "SELECT * FROM users WHERE member_number = $1",
+      [member_number]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const user = result.rows[0];
+
+    if (!user.birth_hour) {
+      return res.status(400).json({ error: "Birth hour not set" });
+    }
+
+    const pythonResponse = await fetch(PYTHON_ENGINE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        member_code: user.member_number,
+        hour: user.birth_hour
+      })
+    });
+
+    const data = await pythonResponse.json();
+
+    res.json(data);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Calculation failed" });
   }
 });
 
