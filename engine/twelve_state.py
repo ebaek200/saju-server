@@ -1,3 +1,9 @@
+# =========================================
+# 12운성(長生十二運) 계산 모듈
+# 일간 기준 지지 위치에 따른 운성 계산
+# =========================================
+
+# 10천간 완전표
 twelve_state_table = {
     "갑": ["해", "자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술"],
     "을": ["오", "미", "신", "유", "술", "해", "자", "축", "인", "묘", "진", "사"],
@@ -19,6 +25,9 @@ twelve_state_names = [
 
 
 def calc_twelve_state(day_master, branch):
+    """
+    일간 기준으로 지지(branch)의 12운성 반환
+    """
     seq = twelve_state_table[day_master]
     idx = seq.index(branch)
     return twelve_state_names[idx]

@@ -1,3 +1,8 @@
+# =========================================
+# 12신살 계산 모듈
+# 연지 기준
+# =========================================
+
 sinsal_table = {
     "자": {"역마": "인", "도화": "유", "장성": "자", "반안": "축"},
     "축": {"역마": "해", "도화": "오", "장성": "축", "반안": "자"},
@@ -14,10 +19,14 @@ sinsal_table = {
 }
 
 
-def calc_sinsal(year_branch, branches):
+def calc_sinsal(year_branch, branch_list):
+    """
+    연지 기준 신살 계산
+    branch_list = [월지, 일지, 시지]
+    """
     result = []
     table = sinsal_table.get(year_branch, {})
     for name, target in table.items():
-        if target in branches:
+        if target in branch_list:
             result.append(name)
     return result
