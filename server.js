@@ -15,7 +15,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-const PYTHON_ENGINE_URL = "https://k-saju.onrender.com/login";
+const PYTHON_ENGINE_URL = "https://k-saju.onrender.com/api/login";
 
 /* ================================
    DB 연결 테스트
