@@ -1,83 +1,71 @@
 const express = require("express");
 const cors = require("cors");
-const { execFile } = require("child_process");
-const path = require("path");
+const { Pool } = require("pg");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-function runBaziEngine(data) {
-  return new Promise((resolve, reject) => {
+/* ================================
+   PostgreSQL 연결 설정
+================================ */
 
-    const args = [
-      path.join(__dirname, "bazi_engine.py"),
-      data.year,
-      data.month,
-      data.day,
-      data.hour,
-      data.gender || "male",
-      data.is_lunar ? "true" : "false",
-      data.leap ? "true" : "false",
-      data.query_year ? data.query_year.toString() : ""
-    ];
-
-    execFile("python3", args, (error, stdout, stderr) => {
-
-      if (stderr) {
-        console.error("=== PYTHON STDERR ===");
-        console.error(stderr);
-      }
-
-      if (error) {
-        console.error("=== PYTHON ERROR ===");
-        console.error(error);
-        reject(new Error(stderr || error.message));
-        return;
-      }
-
-      try {
-        const parsed = JSON.parse(stdout);
-        resolve(parsed);
-      } catch (e) {
-        console.error("=== JSON PARSE ERROR ===");
-        console.error(stdout);
-        reject(e);
-      }
-
-    });
-  });
-}
-
-app.post("/api/saju", async (req, res) => {
-  try {
-
-    console.log("=== REQUEST DATA ===");
-    console.log(req.body);
-
-    const result = await runBaziEngine(req.body);
-
-    res.json(result);
-
-  } catch (err) {
-
-    console.error("=== ENGINE CRASH ===");
-    console.error(err);
-
-    res.status(500).json({
-      error: err.toString()
-    });
-
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
   }
 });
 
+/* ================================
+   DB 연결 테스트 (서버 시작 시 1회 실행)
+================================ */
+
+pool.query("SELECT NOW()")
+  .then(res => {
+    console.log("✅ DB Connected Successfully");
+    console.log("🕒 Server Time:", res.rows[0].now);
+  })
+  .catch(err => {
+    console.error("❌ DB Connection Error");
+    console.error(err);
+  });
+
+/* ================================
+   기본 테스트 라우트
+================================ */
+
 app.get("/", (req, res) => {
-  res.send("K-SAJU SERVER RUNNING");
+  res.json({ message: "Server is running" });
 });
 
-const PORT = process.env.PORT || 10000;
+/* ================================
+   회원가입 예시 (테스트용)
+================================ */
+
+app.post("/register", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const result = await pool.query(
+      "INSERT INTO users(email, password_hash) VALUES($1, $2) RETURNING id",
+      [email, password]
+    );
+
+    res.json({ success: true, userId: result.rows[0].id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Registration failed" });
+  }
+});
+
+/* ================================
+   서버 시작
+================================ */
+
+const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-  console.log("Server running on port " + PORT);
+  console.log(`🚀 Server running on port ${PORT}`);
 });

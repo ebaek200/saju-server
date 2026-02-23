@@ -1,180 +1,103 @@
+# =========================================
+# Phase 3 상용 전환 통합 엔진
+# =========================================
+
 import sys
 import json
-import math
-from datetime import datetime
-import pytz
-import swisseph as swe
-import sxtwl
 
-# -----------------------------
-# 입력
-# -----------------------------
-year = int(sys.argv[1])
-month = int(sys.argv[2])
-day = int(sys.argv[3])
-hour = int(sys.argv[4])
-gender = sys.argv[5]
-is_lunar = sys.argv[6] == "true"
-leap = sys.argv[7] == "true"
-query_year = int(sys.argv[8]) if len(
-    sys.argv) > 8 and sys.argv[8] else datetime.now().year
+from engine.core import calculate_saju, calculate_daewoon_start, calculate_daewoon, calculate_sewoon, calculate_monthwoon
+from engine.fortune_intelligence import enrich_daewoon, enrich_sewoon, enrich_monthwoon
+from engine.interpretation_engine import interpret_full_flow
+from engine.compatibility import analyze_compatibility
+from engine.cache import make_key, get_cache, set_cache
+from engine.user_manager import get_user, register_user, check_limit, increase_usage
+from engine.external_api_adapter import USE_EXTERNAL_API, external_saju_api
+from engine.response import success, error
 
-stems = ["갑", "을", "병", "정", "무", "기", "경", "신", "임", "계"]
-branches = ["자", "축", "인", "묘", "진", "사", "오", "미", "신", "유", "술", "해"]
+try:
 
-# -----------------------------
-# 양/음력 처리
-# -----------------------------
-if is_lunar:
-    day_obj = sxtwl.fromLunar(year, month, day, leap)
-else:
-    day_obj = sxtwl.fromSolar(year, month, day)
+    user_id = sys.argv[1]
+    year = int(sys.argv[2])
+    month = int(sys.argv[3])
+    day = int(sys.argv[4])
+    hour = int(sys.argv[5])
+    query_year = int(sys.argv[6])
 
-year_gz = day_obj.getYearGZ()
-month_gz = day_obj.getMonthGZ()
-day_gz = day_obj.getDayGZ()
-hour_gz = day_obj.getHourGZ(hour)
+    # ----------------------------
+    # 사용자 등록
+    # ----------------------------
+    if not get_user(user_id):
+        register_user(user_id, "free")
 
-year_stem = stems[year_gz.tg]
-year_branch = branches[year_gz.dz]
-month_stem = stems[month_gz.tg]
-month_branch = branches[month_gz.dz]
-day_stem = stems[day_gz.tg]
-day_branch = branches[day_gz.dz]
-hour_stem = stems[hour_gz.tg]
-hour_branch = branches[hour_gz.dz]
+    if not check_limit(user_id):
+        print(json.dumps(error("사용량 초과"), ensure_ascii=False))
+        sys.exit()
 
-# -----------------------------
-# 순행/역행 결정
-# -----------------------------
-yang_index = [0, 2, 4, 6, 8]
-is_yang_year = year_gz.tg in yang_index
+    increase_usage(user_id)
 
-if gender == "male":
-    forward = is_yang_year
-else:
-    forward = not is_yang_year
+    # ----------------------------
+    # 외부 API 전환 구조
+    # ----------------------------
+    if USE_EXTERNAL_API:
+        result = external_saju_api({
+            "year": year,
+            "month": month,
+            "day": day,
+            "hour": hour
+        })
+        print(json.dumps(success(result), ensure_ascii=False))
+        sys.exit()
 
-# -----------------------------
-# 출생 JD 계산
-# -----------------------------
-kst = pytz.timezone("Asia/Seoul")
-birth_kst = kst.localize(datetime(year, month, day, hour))
-birth_utc = birth_kst.astimezone(pytz.utc)
+    # ----------------------------
+    # 캐시 확인
+    # ----------------------------
+    request_data = {
+        "year": year,
+        "month": month,
+        "day": day,
+        "hour": hour,
+        "query_year": query_year
+    }
 
-birth_jd = swe.julday(
-    birth_utc.year,
-    birth_utc.month,
-    birth_utc.day,
-    birth_utc.hour + birth_utc.minute/60
-)
+    key = make_key(request_data)
+    cached = get_cache(key)
+    if cached:
+        print(json.dumps(success(cached), ensure_ascii=False))
+        sys.exit()
 
-# -----------------------------
-# 태양 황경
-# -----------------------------
+    # ----------------------------
+    # 계산 수행
+    # ----------------------------
+    saju = calculate_saju(year, month, day, hour)
+    day_master = saju["day"][0]
 
+    start_age = calculate_daewoon_start(year, month, day, hour)
+    daewoon = calculate_daewoon(saju["month"], start_age)
 
-def sun_longitude(jd):
-    return swe.calc_ut(jd, swe.SUN)[0][0] % 360
+    sewoon = calculate_sewoon(query_year)
+    monthwoon = calculate_monthwoon(query_year)
 
-# -----------------------------
-# 다음 절 찾기 (정밀)
-# -----------------------------
+    daewoon_e = enrich_daewoon(daewoon, day_master)
+    sewoon_e = enrich_sewoon(sewoon, day_master)
+    monthwoon_e = enrich_monthwoon(monthwoon, day_master)
 
+    interpretation = interpret_full_flow(
+        daewoon_e,
+        sewoon_e,
+        monthwoon_e
+    )
 
-def find_next_jeol(start_jd):
+    result = {
+        "saju": saju,
+        "daewoon": daewoon_e,
+        "sewoon": sewoon_e,
+        "monthwoon": monthwoon_e,
+        "interpretation": interpretation
+    }
 
-    current_lon = sun_longitude(start_jd)
-    target_deg = (math.floor(current_lon / 30) + 1) * 30
-    if target_deg >= 360:
-        target_deg -= 360
+    set_cache(key, result)
 
-    jd = start_jd
-    step = 0.5
+    print(json.dumps(success(result), ensure_ascii=False))
 
-    while True:
-        jd_next = jd + step
-        lon1 = sun_longitude(jd)
-        lon2 = sun_longitude(jd_next)
-
-        if (lon1 <= target_deg <= lon2) or (target_deg == 0 and lon2 < lon1):
-            low = jd
-            high = jd_next
-            break
-
-        jd = jd_next
-
-    # 이분법 정밀화
-    for _ in range(60):
-        mid = (low + high) / 2
-        lon_mid = sun_longitude(mid)
-        if (lon_mid - target_deg + 360) % 360 < 180:
-            high = mid
-        else:
-            low = mid
-
-    return (low + high) / 2
-
-
-# -----------------------------
-# 대운 시작 나이 (정밀 계산)
-# -----------------------------
-if forward:
-    target_jd = find_next_jeol(birth_jd)
-else:
-    target_jd = find_next_jeol(birth_jd - 40)
-
-days_diff = abs(target_jd - birth_jd)
-
-# 내부 계산은 절대 round 금지
-daewoon_start_age_raw = days_diff / 3.0
-
-# -----------------------------
-# 60갑자
-# -----------------------------
-ganji_60 = [stems[i % 10] + branches[i % 12] for i in range(60)]
-month_ganji = month_stem + month_branch
-month_index = ganji_60.index(month_ganji)
-
-daewoon = []
-for i in range(1, 11):
-    idx = (month_index + i) % 60 if forward else (month_index - i) % 60
-
-    precise_age = daewoon_start_age_raw + (i-1)*10
-
-    daewoon.append({
-        "start_age": float(f"{precise_age:.1f}"),   # 출력용만 1자리
-        "ganji": ganji_60[idx]
-    })
-
-# -----------------------------
-# 현재 나이 및 운수 계산
-# -----------------------------
-age = query_year - year
-
-if age < daewoon_start_age_raw:
-    daewoon_number = 0
-    sewoon_number = 0
-else:
-    daewoon_number = int((age - daewoon_start_age_raw) // 10) + 1
-    sewoon_number = int((age - daewoon_start_age_raw) % 10) + 1
-
-# -----------------------------
-# 결과
-# -----------------------------
-result = {
-    "saju": {
-        "year": year_stem+year_branch,
-        "month": month_stem+month_branch,
-        "day": day_stem+day_branch,
-        "hour": hour_stem+hour_branch
-    },
-    "daewoon_start_age": float(f"{daewoon_start_age_raw:.1f}"),
-    "daewoon_direction": "순행" if forward else "역행",
-    "daewoon": daewoon,
-    "age": age,
-    "daewoon_number": daewoon_number,
-    "sewoon_number": sewoon_number
-}
-
-print(json.dumps(result, ensure_ascii=False))
+except Exception as e:
+    print(json.dumps(error(str(e)), ensure_ascii=False))
