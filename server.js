@@ -17,7 +17,10 @@ function runBaziEngine(data) {
       data.month,
       data.day,
       data.hour,
-      data.gender || "male"
+      data.gender || "male",
+      data.is_lunar ? "true" : "false",
+      data.leap ? "true" : "false",
+      data.query_year ? data.query_year.toString() : ""
     ];
 
     execFile("python3", args, (error, stdout, stderr) => {
@@ -39,7 +42,7 @@ function runBaziEngine(data) {
         resolve(parsed);
       } catch (e) {
         console.error("=== JSON PARSE ERROR ===");
-        console.error("STDOUT:", stdout);
+        console.error(stdout);
         reject(e);
       }
 
