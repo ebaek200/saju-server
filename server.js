@@ -155,7 +155,7 @@ app.post("/calculate", async (req, res) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         member_code: user.member_number,
-        hour: user.birth_hour
+        hour: parseInt(user.birth_hour)
       })
     });
 
